@@ -1,3 +1,38 @@
+use {
+    solana_client::rpc_client::RpcClient,
+    solana_sdk::{
+        instruction::Instruction,
+        pubkey::Pubkey,
+        signer::{
+            keypair::{read_keypair_file, write_keypair_file, Keypair},
+            Signer,
+        },
+        transaction::Transaction,
+        {borsh::try_from_slice_unchecked, program_pack::Pack},
+    },
+    spl_token::state::{Account, Mint},
+    spl_token_metadata::{
+        instruction::{create_master_edition, create_metadata_accounts},
+        state::{Metadata, EDITION, PREFIX},
+    },
+    std::{io, io::Write, thread, time},
+};
+
+const CLIENT_URL: &'static str = "https://api.devnet.solana.com";
+const WALLET_FILE_PATH: &'static str = "wallet.keypair";
+
+fn get_wallet() -> Keypair {
+    let wallet_keypair: Keypair = if let Ok(keypair) = read_keypair_file(WALLET_FILE_PATH) {
+        keypair
+    } else {
+        let new_keypair = Keypair::new();
+        write_keypair_file(&new_keypair, WALLET_FILE_PATH).unwrap();
+        new_keypair
+    };
+
+    return wallet_keypair;
+}
+
 fn mint_nft(
     wallet_keypair: &Keypair,
     mint_account_pubkey: &Pubkey,
