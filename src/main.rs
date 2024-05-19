@@ -33,6 +33,52 @@ fn get_wallet() -> Keypair {
     return wallet_keypair;
 }
 
+fn create_mint_account(wallet_keypair: &Keypair, client: &RpcClient) -> Pubkey {
+    let mint_account: Keypair = Keypair::new();
+    let mint_account_pubkey = mint_account.pubkey();
+    let wallet_pubkey = wallet_keypair.pubkey();
+
+    let minimum_balance_for_rent_exemption = client
+        .get_minimum_balance_for_rent_exemption(Mint::LEN)
+        .unwrap();
+
+    let create_account_instruction: Instruction = solana_sdk::system_instruction::create_account(
+        &wallet_pubkey,
+        &mint_account_pubkey,
+        minimum_balance_for_rent_exemption,
+        Mint::LEN as u64,
+        &spl_token::id(),
+    );
+    let initialize_mint_instruction: Instruction = spl_token::instruction::initialize_mint(
+        &spl_token::id(),
+        &mint_account_pubkey,
+        &wallet_pubkey,
+        None,
+        0,
+    )
+    .unwrap();
+
+    let (recent_blockhash, _fee_calculator) = client.get_recent_blockhash().unwrap();
+
+    let transaction: Transaction = Transaction::new_signed_with_payer(
+        &vec![create_account_instruction, initialize_mint_instruction],
+        Some(&wallet_pubkey),
+        &[&mint_account, &wallet_keypair],
+        recent_blockhash,
+    );
+
+    let result = client.send_and_confirm_transaction_with_spinner(&transaction);
+
+    if result.is_ok() {
+        println!(
+            "Successfully created a Mint Account with Pubkey: {:?}",
+            mint_account_pubkey
+        )
+    };
+
+    return mint_account_pubkey;
+}
+
 fn mint_nft(
     wallet_keypair: &Keypair,
     mint_account_pubkey: &Pubkey,
