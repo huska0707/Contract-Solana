@@ -218,6 +218,78 @@ fn mint_nft(
     };
 }
 
+fn upgrade_to_master_edition(
+    wallet_keypair: &Keypair,
+    metadata_key: &Pubkey,
+    mint_account_pubkey: &Pubkey,
+    client: &RpcClient,
+) {
+    let wallet_pubkey = wallet_keypair.pubkey();
+    let program_key = spl_token_metadata::id();
+
+    let metadata_account = client.get_account(&metadata_key).unwrap();
+    let metadata: Metadata = try_from_slice_unchecked(&metadata_account.data).unwrap();
+
+    let master_edition_seeds = &[
+        PREFIX.as_bytes(),
+        &program_key.as_ref(),
+        &metadata.mint.as_ref(),
+        EDITION.as_bytes(),
+    ];
+    let (master_edition_key, _) = Pubkey::find_program_address(master_edition_seeds, &program_key);
+
+    let master_edition_instruction = create_master_edition(
+        program_key,
+        master_edition_key,
+        *mint_account_pubkey,
+        wallet_pubkey,
+        wallet_pubkey,
+        *metadata_key,
+        wallet_pubkey,
+        Some(1),
+    );
+
+    let (recent_blockhash, _fee_calculator) = client.get_recent_blockhash().unwrap();
+    let transaction: Transaction = Transaction::new_signed_with_payer(
+        &vec![master_edition_instruction],
+        Some(&wallet_pubkey),
+        &[wallet_keypair],
+        recent_blockhash,
+    );
+
+    let result = client.send_and_confirm_transaction_with_spinner(&transaction);
+
+    if result.is_ok() {
+        println!("Upgraded Metadata Account to Master Edition!");
+    } else {
+        println!("{:?}", result);
+        return;
+    }
+
+    let master_metadata: Metadata = try_from_slice_unchecked(&metadata_account.data).unwrap();
+
+    println!("\nSnapshot of Master Edition Metadata\n");
+    println!("key: {:#?}", master_metadata.key);
+    println!("update_authority: {:#?}", master_metadata.update_authority);
+    println!("mint: {:#?}", master_metadata.mint);
+    println!(
+        "name: {:#?}",
+        master_metadata.data.name.trim_end_matches(char::from(0))
+    );
+    println!(
+        "symbol: {:#?}",
+        master_metadata.data.symbol.trim_end_matches(char::from(0))
+    );
+    println!(
+        "uri: {:#?}",
+        master_metadata.data.uri.trim_end_matches(char::from(0))
+    );
+    println!(
+        "seller_fee_basis_points: {:#?}",
+        master_metadata.data.seller_fee_basis_points
+    );
+}
+
 fn main() {
     // Get our Wallet KeyPair
     let wallet_keypair = get_wallet();
