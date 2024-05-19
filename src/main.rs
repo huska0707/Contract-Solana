@@ -125,6 +125,62 @@ fn create_token_account(
     return account_mint_to_pubkey;
 }
 
+fn create_metadata_account(
+    wallet_keypair: &Keypair,
+    mint_account_pubkey: &Pubkey,
+    client: &RpcClient,
+) -> Pubkey {
+    let wallet_pubkey = wallet_keypair.pubkey();
+
+    let program_key = spl_token_metadata::id();
+    let metadata_seeds = &[
+        PREFIX.as_bytes(),
+        &program_key.as_ref(),
+        mint_account_pubkey.as_ref(),
+    ];
+    let (metadata_key, _) = Pubkey::find_program_address(metadata_seeds, &program_key);
+
+    // Test Metadata
+    let name = String::from("Jeff NFT");
+    let symbol = String::from(J");
+    let uri = String::from("https://solana.com");
+
+    let new_metadata_instruction = create_metadata_accounts(
+        program_key,
+        metadata_key,
+        *mint_account_pubkey,
+        wallet_pubkey,
+        wallet_pubkey,
+        wallet_pubkey,
+        name,
+        symbol,
+        uri,
+        None,
+        0,
+        false,
+        false,
+    );
+
+    let (recent_blockhash, _fee_calculator) = client.get_recent_blockhash().unwrap();
+
+    let transaction: Transaction = Transaction::new_signed_with_payer(
+        &vec![new_metadata_instruction],
+        Some(&wallet_pubkey),
+        &[wallet_keypair],
+        recent_blockhash,
+    );
+
+    let result = client.send_and_confirm_transaction_with_spinner(&transaction);
+    if result.is_ok() {
+        println!(
+            "Successfully created a new Metadata Account with Pubkey: {:?}",
+            metadata_key
+        )
+    };
+
+    return metadata_key;
+}
+
 fn mint_nft(
     wallet_keypair: &Keypair,
     mint_account_pubkey: &Pubkey,
