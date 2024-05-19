@@ -79,6 +79,52 @@ fn create_mint_account(wallet_keypair: &Keypair, client: &RpcClient) -> Pubkey {
     return mint_account_pubkey;
 }
 
+fn create_token_account(
+    wallet_keypair: &Keypair,
+    mint_account_pubkey: &Pubkey,
+    client: &RpcClient,
+) -> Pubkey {
+    let wallet_pubkey = wallet_keypair.pubkey();
+    let account_mint_to: Keypair = Keypair::new();
+    let account_mint_to_pubkey: Pubkey = account_mint_to.pubkey();
+
+    let create_account_instruction: Instruction = solana_sdk::system_instruction::create_account(
+        &wallet_pubkey,
+        &account_mint_to_pubkey,
+        client
+            .get_minimum_balance_for_rent_exemption(Account::LEN)
+            .unwrap(),
+        Account::LEN as u64,
+        &spl_token::id(),
+    );
+    let initialize_account2_instruction: Instruction = spl_token::instruction::initialize_account2(
+        &spl_token::id(),
+        &account_mint_to_pubkey,
+        &mint_account_pubkey,
+        &wallet_pubkey,
+    )
+    .unwrap();
+
+    let (recent_blockhash, _fee_calculator) = client.get_recent_blockhash().unwrap();
+
+    let transaction: Transaction = Transaction::new_signed_with_payer(
+        &vec![create_account_instruction, initialize_account2_instruction],
+        Some(&wallet_pubkey),
+        &[&wallet_keypair, &account_mint_to],
+        recent_blockhash,
+    );
+
+    let result = client.send_and_confirm_transaction_with_spinner(&transaction);
+    if result.is_ok() {
+        println!(
+            "Successfully created a Token Account with Pubkey: {:?}",
+            account_mint_to_pubkey
+        )
+    };
+
+    return account_mint_to_pubkey;
+}
+
 fn mint_nft(
     wallet_keypair: &Keypair,
     mint_account_pubkey: &Pubkey,
