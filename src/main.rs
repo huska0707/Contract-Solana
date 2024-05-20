@@ -125,6 +125,45 @@ fn create_token_account(
     return account_mint_to_pubkey;
 }
 
+fn mint_nft(
+    wallet_keypair: &Keypair,
+    mint_account_pubkey: &Pubkey,
+    token_account_pubkey: &Pubkey,
+    client: &RpcClient,
+) {
+    let wallet_pubkey = wallet_keypair.pubkey();
+
+    let mint_to_instruction: Instruction = spl_token::instruction::mint_to(
+        &spl_token::id(),
+        &mint_account_pubkey,
+        &token_account_pubkey,
+        &wallet_pubkey,
+        &[&wallet_pubkey],
+        1,
+    )
+    .unwrap();
+
+    let (recent_blockhash, _fee_calculator) = client.get_recent_blockhash().unwrap();
+    let transaction: Transaction = Transaction::new_signed_with_payer(
+        &vec![mint_to_instruction],
+        Some(&wallet_pubkey),
+        &[wallet_keypair],
+        recent_blockhash,
+    );
+
+    let result = client.send_and_confirm_transaction_with_spinner(&transaction);
+    if result.is_ok() {
+        println!("Successfully Minted NFT to : {:?}", wallet_pubkey);
+
+        upgrade_to_master_edition(
+            &wallet_keypair,
+            &create_metadata_account(&wallet_keypair, &mint_account_pubkey, &client),
+            &mint_account_pubkey,
+            &client,
+        );
+    };
+}
+
 fn create_metadata_account(
     wallet_keypair: &Keypair,
     mint_account_pubkey: &Pubkey,
@@ -142,7 +181,7 @@ fn create_metadata_account(
 
     // Test Metadata
     let name = String::from("Jeff NFT");
-    let symbol = String::from(J");
+    let symbol = String::from("J");
     let uri = String::from("https://solana.com");
 
     let new_metadata_instruction = create_metadata_accounts(
@@ -179,43 +218,6 @@ fn create_metadata_account(
     };
 
     return metadata_key;
-}
-
-fn mint_nft(
-    wallet_keypair: &Keypair,
-    mint_account_pubkey: &Pubkey,
-    token_account_pubkey: &Pubkey,
-    client: &RpcClient,
-) {
-    let wallet_pubkey = wallet_keypair.pubkey();
-
-    let mint_to_instruction: Instruction = spl_token::instruction::mint_to(
-        &spl_token::id(),
-        &mint_account_pubkey,
-        &token_account_pubkey,
-        &wallet_pubkey,
-        &[&wallet_pubkey],
-        1,
-    )
-    .unwrap();
-    let (recent_blockhash, _fee_calculator) = client.get_recent_blockhash().unwrap();
-    let transaction: Transaction = Transaction::new_signed_with_payer(
-        &vec![mint_to_instruction],
-        Some(&wallet_pubkey),
-        &[wallet_keypair],
-        recent_blockhash,
-    );
-    let result = client.send_and_confirm_transaction_with_spinner(&transaction);
-    if result.is_ok() {
-        println!("Successfully Minted NFT to : {:?}", wallet_pubkey);
-
-        upgrade_to_master_edition(
-            &wallet_keypair,
-            &create_metadata_account(&wallet_keypair, &mint_account_pubkey, &client),
-            &mint_account_pubkey,
-            &client,
-        );
-    };
 }
 
 fn upgrade_to_master_edition(
@@ -328,6 +330,7 @@ fn main() {
     // Create the required prelim accounts
     let mint_account_pubkey = create_mint_account(&wallet_keypair, &client);
     let token_account_pubkey = create_token_account(&wallet_keypair, &mint_account_pubkey, &client);
+
     // Create the NFT, including the Metadata associated with it
     mint_nft(
         &wallet_keypair,
@@ -335,5 +338,6 @@ fn main() {
         &token_account_pubkey,
         &client,
     );
+
     return;
 }
